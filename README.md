@@ -9,8 +9,44 @@ This is just an extension of [Node Serial Port](https://github.com/serialport/no
 
 However, this project does add some extra functionality:
 
+### Extra methods
+* `stopChecker()`: Will stop the checking process
+* `startChecker()`: Will start the checking process
+* `isConnected(): boolean`: Is the port currently connected?
+* `openPort(): Promise<void>`: Will open the port and start the checker if required
+* `closePort(): Promise<void>`: Will close the port and stop the checker
 
-
+### Extra Options
+* `BetterSerialPortOptions.keepOpen: boolean`: Should the port be kept open?
+* `BetterSerialPortOptions.checkerIntervalMS: number`: How often should we check the port? Default is 1000ms
 
 # Example
+```javascript
+const BetterSerialPort = require("better-serial-port");
 
+//Create the port and keep it open
+const serialport = new BetterSerialPort.BetterSerialPort({
+    path: "/dev/example",
+    baudRate: 9600,
+    keepOpen: true,
+    checkerIntervalMS: 1000
+});
+
+//Write example
+serialport.write("Hello World!");
+
+//Print out any data
+serialport.on("data", (data) => {
+    console.log(data);
+});
+
+//When the port is connected
+serialport.on("open", () => {
+    console.log("Port connected!");
+});
+
+//When the port is disconnected
+serialport.on("close", () => {
+    console.log("Port disconnected");
+});
+```
