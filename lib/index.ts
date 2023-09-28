@@ -8,34 +8,47 @@ import { AutoDetectTypes, PortInfo } from '@serialport/bindings-cpp';
 import { ErrorCallback } from '@serialport/stream';
 export type BetterSerialPortOptions = SerialPortOpenOptions<AutoDetectTypes> & {
   keepOpen?: boolean,
-  checkerIntervalMS?: number
+  checkerIntervalMS?: number,
+  closePortOnError?: boolean,
+  assumeDisconnectMS?: number
 }
 export class BetterSerialPort extends SerialPort {
   checker: NodeJS.Timeout | undefined = undefined;
+  disconnectionChecker: NodeJS.Timeout | undefined = undefined;
   keepOpen: boolean = true;
   checkerIntervalMS: number = 1000;
-  connected: boolean = false;
   pnpId: string | undefined = undefined;
+  assumeDisconnectMS: number | undefined = undefined;
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
     var autoOpen = options.autoOpen == false ? false : true;
     options.autoOpen = false;
     super(options);
+
     if (options.path.toLowerCase().includes("serial/by-id")) {
       this.pnpId = options.path.split("/").pop()!;
     }
 
-    this.on("open", () => {
-      this.connected = true;
+    this.on("close", () => {
+      clearTimeout(this.disconnectionChecker);
     });
 
-    this.on("close", () => {
-      this.connected = false;
+    this.on("error", () => {
+      if (options.closePortOnError == true) {
+        this.closePort();
+      }
     });
 
     if (options.keepOpen !== undefined) { this.keepOpen = options.keepOpen; }
     if (options.checkerIntervalMS !== undefined) { this.checkerIntervalMS = options.checkerIntervalMS; }
-    if (autoOpen && openCallback) {
-      this.openPort().then(() => { openCallback(null) }).catch(openCallback);
+    if (options.assumeDisconnectMS !== undefined) { this.assumeDisconnectMS = options.assumeDisconnectMS; }
+    if (autoOpen) {
+      if (openCallback) {
+        this.openPort().then(() => { openCallback(null) }).catch(openCallback);
+      }
+      else {
+        try { this.openPort(); }
+        catch (e) { }
+      }
     }
   }
 
@@ -44,24 +57,16 @@ export class BetterSerialPort extends SerialPort {
    */
   stopChecker() {
     clearInterval(this.checker);
+    clearInterval(this.disconnectionChecker);
   }
 
   /**
-   * Is the port currently connected
-   * @returns If the port is connected
+   * Does the port currently exist
+   * @returns A promise<boolean>
    */
-  isConnected() {
-    return this.connected;
-  }
-
-  /**
-   * Start the checker
-   */
-  startChecker() {
-    if (this.keepOpen) {
-      clearInterval(this.checker);
-      this.checker = setInterval(async () => {
-        //Check if our port exists and handle depending on this
+  portExists(): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+      try {
         var found = false;
         var ports: PortInfo[] = await SerialPort.list();
         for (var i in ports) {
@@ -70,14 +75,69 @@ export class BetterSerialPort extends SerialPort {
             break;
           }
         }
+        resolve(found);
+      }
+      catch (e) { reject(e); }
+    });
+  }
 
-        if (found && !this.connected && this.keepOpen) {
-          await this.openPort();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  write(chunk: any, encoding?: BufferEncoding, cb?: (error: Error | null | undefined) => void): boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  write(chunk: any, cb?: (error: Error | null | undefined) => void): boolean
+  write(data: any, encoding?: any, callback?: any): boolean {
+    new Promise(async (resolve) => {
+      if (await this.isConnected()) {
+        resolve(super.write(data, encoding, callback));
+      }
+      else {
+        if (callback) { callback("Port is not connected"); }
+        resolve(false);
+      }
+    });
+    return true;
+  }
+
+  /**
+   * Is the port currently connected
+   * @returns A promise<boolean> if the port is available and open
+   */
+  isConnected(): Promise<boolean> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        resolve(await this.portExists() && this.isOpen);
+      }
+      catch (e) { reject(e); }
+    });
+  }
+
+  /**
+   * Start the checker
+   */
+  startChecker() {
+    if (this.keepOpen) {
+      clearInterval(this.checker);
+      clearInterval(this.disconnectionChecker);
+      this.checker = setInterval(async () => {
+        try {
+          if ((await this.portExists()) && !this.isOpen && this.keepOpen) {
+            await this.openPort();
+          }
+          else if (!(await this.isConnected()) && this.isOpen) {
+            await this.closePort();
+          }
         }
-        else if (!found && this.connected) {
-          await this.closePort();
-        }
+        catch (e) { }
       }, this.checkerIntervalMS);
+
+      if (this.assumeDisconnectMS) {
+        this.on("data", () => {
+          clearInterval(this.disconnectionChecker);
+          this.disconnectionChecker = setTimeout(async () => {
+            this.close();
+          }, this.assumeDisconnectMS);
+        });
+      }
     }
     else {
       this.stopChecker();
@@ -89,12 +149,21 @@ export class BetterSerialPort extends SerialPort {
    * @returns A promise
    */
   openPort(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      super.open((err) => {
-        if (err) { reject(err); return; }
-        resolve();
-      });
-      this.startChecker();
+    return new Promise(async (resolve, reject) => {
+      //Check if the port actually exists first and try to open it
+      if ((await this.portExists() && !this.isOpen)) {
+        super.open((err) => {
+          if (err) { reject(err); return; }
+          resolve();
+        });
+      }
+      else {
+        reject("Port does not exist");
+      }
+
+      if (!this.checker) {
+        this.startChecker();
+      }
     });
   }
 
@@ -104,7 +173,7 @@ export class BetterSerialPort extends SerialPort {
    */
   closePort(disconnectError?: Error): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.connected = false;
+      clearInterval(this.disconnectionChecker);
       if (!this.keepOpen) {
         this.stopChecker();
       }

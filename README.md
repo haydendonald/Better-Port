@@ -3,6 +3,8 @@ This is a basic wrapper around [Node Serial Port](https://github.com/serialport/
 
 # Features
 * The port is monitored. If it disconnects it will emit the `close` event and when it is detected again it will automatically reconnect and emit the `open` event
+* Can auto reopen the port on error
+* The ability to set an expected time for a message to be heard, if this is missed the port will be closed and reopened if needed
 
 # How to use
 This is just an extension of [Node Serial Port](https://github.com/serialport/node-serialport) so check out the [docs](https://serialport.io/docs/) for that project. 
@@ -19,6 +21,8 @@ However, this project does add some extra functionality:
 ### Extra Options
 * `BetterSerialPortOptions.keepOpen: boolean`: Should the port be kept open?
 * `BetterSerialPortOptions.checkerIntervalMS: number`: How often should we check the port? Default is 1000ms
+* `BetterSerialPortOptions.closePortOnError: boolean`: Should the port be closed if an error happens
+* `assumeDisconnectMS: number`: How many ms to allow between received messages before assuming a disconnect. Useful for heartbeat messages from the device to detect disconnections
 
 # Example
 ```javascript
