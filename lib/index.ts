@@ -57,7 +57,7 @@ export class BetterSerialPort extends SerialPort {
    */
   stopChecker() {
     clearInterval(this.checker);
-    clearInterval(this.disconnectionChecker);
+    clearTimeout(this.disconnectionChecker);
   }
 
   /**
@@ -117,7 +117,7 @@ export class BetterSerialPort extends SerialPort {
   startChecker() {
     if (this.keepOpen) {
       clearInterval(this.checker);
-      clearInterval(this.disconnectionChecker);
+      clearTimeout(this.disconnectionChecker);
       this.checker = setInterval(async () => {
         try {
           if ((await this.portExists()) && !this.isOpen && this.keepOpen) {
@@ -132,10 +132,12 @@ export class BetterSerialPort extends SerialPort {
 
       if (this.assumeDisconnectMS) {
         this.on("data", () => {
-          clearInterval(this.disconnectionChecker);
-          this.disconnectionChecker = setTimeout(async () => {
-            this.close();
-          }, this.assumeDisconnectMS);
+          clearTimeout(this.disconnectionChecker);
+          if (this.isOpen) {
+            this.disconnectionChecker = setTimeout(async () => {
+              if (this.isOpen) { this.close(); }
+            }, this.assumeDisconnectMS);
+          }
         });
       }
     }
@@ -169,12 +171,14 @@ export class BetterSerialPort extends SerialPort {
 
   /**
    * Close the port
+   * @param keepClosed Keep the port closed after closing
+   * @param disconnectError The error to pass to the disconnect event
    * @returns A promise
    */
-  closePort(disconnectError?: Error): Promise<void> {
+  closePort(keepClosed: boolean = false, disconnectError?: Error): Promise<void> {
     return new Promise((resolve, reject) => {
-      clearInterval(this.disconnectionChecker);
-      if (!this.keepOpen) {
+      clearTimeout(this.disconnectionChecker);
+      if (!this.keepOpen || keepClosed == true) {
         this.stopChecker();
       }
       if (this.isOpen) {
