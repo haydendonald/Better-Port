@@ -160,7 +160,7 @@ export class BetterSerialPort extends SerialPort {
         });
       }
       else {
-        reject("Port does not exist");
+        reject(this.isOpen == false ? "Port does not exist" : "Port is already open");
       }
 
       if (!this.checker) {
