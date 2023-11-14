@@ -56,7 +56,7 @@ export class BetterSerialPort extends SerialPort {
    * Stop the checker from running
    */
   stopChecker() {
-    clearInterval(this.checker);
+    clearTimeout(this.checker);
     clearTimeout(this.disconnectionChecker);
   }
 
@@ -115,34 +115,37 @@ export class BetterSerialPort extends SerialPort {
    * Start the checker
    */
   startChecker() {
-    if (this.keepOpen) {
-      clearInterval(this.checker);
-      clearTimeout(this.disconnectionChecker);
-      this.checker = setInterval(async () => {
+    var self = this;
+    if (self.keepOpen) {
+      clearTimeout(self.disconnectionChecker);
+      var checker = async () => {
         try {
-          if ((await this.portExists()) && !this.isOpen && this.keepOpen) {
-            await this.openPort();
+          if ((await self.portExists()) && !self.isOpen && self.keepOpen) {
+            await self.openPort();
           }
-          else if (!(await this.isConnected()) && this.isOpen) {
-            await this.closePort();
+          else if (!(await self.isConnected()) && self.isOpen) {
+            await self.closePort();
           }
         }
         catch (e) { }
-      }, this.checkerIntervalMS);
+        self.checker = setTimeout(checker, self.checkerIntervalMS);
+      }
+      clearTimeout(self.checker);
+      checker();
 
-      if (this.assumeDisconnectMS) {
-        this.on("data", () => {
-          clearTimeout(this.disconnectionChecker);
-          if (this.isOpen) {
-            this.disconnectionChecker = setTimeout(async () => {
-              if (this.isOpen) { this.close(); }
-            }, this.assumeDisconnectMS);
+      if (self.assumeDisconnectMS) {
+        self.on("data", () => {
+          clearTimeout(self.disconnectionChecker);
+          if (self.isOpen) {
+            self.disconnectionChecker = setTimeout(async () => {
+              if (self.isOpen) { self.close(); }
+            }, self.assumeDisconnectMS);
           }
         });
       }
     }
     else {
-      this.stopChecker();
+      self.stopChecker();
     }
   }
 
