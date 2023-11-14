@@ -118,6 +118,7 @@ export class BetterSerialPort extends SerialPort {
         });
 
         await self.open();
+        resolve();
       }
       else {
         reject(this.isOpen == false ? "Port does not exist" : "Port is already open");
