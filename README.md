@@ -4,7 +4,7 @@ This is a basic wrapper around [Node Serial Port](https://github.com/serialport/
 # Features
 * The port is monitored. If it disconnects it will emit the `close` event and when it is detected again it will automatically reconnect and emit the `open` event
 * Can auto reopen the port on error
-* The ability to set an expected time for a message to be heard, if this is missed the port will be closed and reopened if needed
+* If there is no data for a specific period of time it will assume the port disconnected
 
 # How to use
 This is just an extension of [Node Serial Port](https://github.com/serialport/node-serialport) so check out the [docs](https://serialport.io/docs/) for that project. 
@@ -12,17 +12,12 @@ This is just an extension of [Node Serial Port](https://github.com/serialport/no
 However, this project does add some extra functionality:
 
 ### Extra methods
-* `stopChecker()`: Will stop the checking process
-* `startChecker()`: Will start the checking process
-* `isConnected(): boolean`: Is the port currently connected?
 * `openPort(): Promise<void>`: Will open the port and start the checker if required
 * `closePort(): Promise<void>`: Will close the port and stop the checker
 
 ### Extra Options
 * `BetterSerialPortOptions.keepOpen: boolean`: Should the port be kept open?
-* `BetterSerialPortOptions.checkerIntervalMS: number`: How often should we check the port? Default is 1000ms
-* `BetterSerialPortOptions.closePortOnError: boolean`: Should the port be closed if an error happens
-* `assumeDisconnectMS: number`: How many ms to allow between received messages before assuming a disconnect. Useful for heartbeat messages from the device to detect disconnections
+* `BetterSerialPortOptions.disconnectTimeoutMS: number | boolean`: How often should we check the port? Set this to `false` to disable the checker
 
 # Example
 ```javascript
@@ -33,7 +28,7 @@ const serialport = new BetterSerialPort.BetterSerialPort({
     path: "/dev/example",
     baudRate: 9600,
     keepOpen: true,
-    checkerIntervalMS: 1000
+    disconnectTimeoutMS: 1000
 });
 
 //Write example
