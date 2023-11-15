@@ -6,39 +6,82 @@
 import { SerialPort, SerialPortOpenOptions } from 'serialport'
 import { AutoDetectTypes, PortInfo } from '@serialport/bindings-cpp';
 import { ErrorCallback } from '@serialport/stream';
+import { EventEmitter } from 'stream';
+
 export type BetterSerialPortOptions = SerialPortOpenOptions<AutoDetectTypes> & {
-  keepOpen?: boolean,
-  disconnectTimeoutMS?: number | boolean
+  keepOpen?: boolean, //Should we keep the port open
+  closeOnNoData?: boolean, //Should we close the port if no data is received
+  disconnectTimeoutMS?: number //How long should we wait before disconnecting on no data
 }
-export class BetterSerialPort extends SerialPort {
-  keepOpen: boolean = false;
+export class BetterSerialPortEvent {
+  /** 
+  * Will emit an error if one occurs
+  * @event
+  */
+  static error = "error"
+
+  /** 
+  * Will emit when the port closes
+  * @event
+  */
+  static close = "close"
+
+  /** 
+  * Will emit when the port opens
+  * @event
+  */
+  static open = "open"
+
+  /** 
+  * Will emit when there is data from the port
+  * @event
+  */
+  static data = "data"
+}
+
+export class BetterSerialPort extends EventEmitter {
+  port: SerialPort | undefined;
+  keepOpen: boolean;
+  closeOnNoData: boolean;
+  disconnectTimeoutMS: number;
+  serialPortOptions: SerialPortOpenOptions<AutoDetectTypes>;
+  path: string | undefined;
   disconnectedChecker: NodeJS.Timeout | undefined = undefined;
-  disconnectTimeoutMS: number | boolean = 5000;
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
-    var autoOpen = options.autoOpen;
-    options.autoOpen = false;
-    super(options);
-    this.keepOpen = options.keepOpen ? options.keepOpen : true;
+    super();
+    this.serialPortOptions = options;
+    this.serialPortOptions.autoOpen = false;
+
+    this.keepOpen = options.keepOpen == undefined ? true : options.keepOpen;
+    this.closeOnNoData = options.closeOnNoData == undefined ? true : options.closeOnNoData;
     this.disconnectTimeoutMS = options.disconnectTimeoutMS != undefined ? options.disconnectTimeoutMS : 5000;
+    if (typeof options.path == "string") {
+      this.path = options.path;
+    }
 
     //Auto open the port if set
-    if (autoOpen == true) {
+    if (options.autoOpen == true) {
       if (openCallback) {
         this.openPort().then(() => { openCallback(null) }).catch(openCallback);
       }
       else {
         try { this.openPort(); }
-        catch (e) { this.emit("error", e); }
+        catch (e) { this.emit(BetterSerialPortEvent.error, e); }
       }
     }
   }
 
   /**
-   * Does the port currently exist
-   * @returns A promise<boolean>
-   */
+ * Does the port currently exist
+ * @returns A promise<boolean>
+ */
   portExists(): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
+      if (!this.path) {
+        resolve(false);
+        return;
+      }
+
       try {
         var found = false;
         var ports: PortInfo[] = await SerialPort.list();
@@ -54,48 +97,46 @@ export class BetterSerialPort extends SerialPort {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  write(chunk: any, encoding?: BufferEncoding, cb?: (error: Error | null | undefined) => void): boolean
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  write(chunk: any, cb?: (error: Error | null | undefined) => void): boolean
-  write(data: any, encoding?: any, callback?: any): boolean {
-    new Promise(async (resolve) => {
-      if (this.isOpen) {
-        resolve(super.write(data, encoding, callback));
-      }
-      else {
-        if (callback) { callback("Port is not connected"); }
-        resolve(false);
-      }
-    });
-    return true;
+  /**
+   * Is the port currently open
+   */
+  portOpen(): boolean {
+    return this.port != undefined && this.port.isOpen;
   }
 
   /**
-   * Open the port
-   * @param keepOpen Keep the port open after opening
-   * @returns A promise
-   */
+ * Open the port
+ * @param keepOpen Keep the port open after opening
+ * @returns A promise
+ */
   openPort(keepOpen: boolean | undefined = undefined): Promise<void> {
     var self = this;
     if (keepOpen != undefined) { this.keepOpen = keepOpen; }
     return new Promise(async (resolve, reject) => {
       //Check if the port actually exists first and try to open it
-      if (!this.isOpen && (await this.portExists()) == true) {
+
+      if (this.portOpen() == false && (await this.portExists()) == true) {
+
+        //Recreate the port
+        await this.closePort();
+        this.port = new SerialPort(this.serialPortOptions);
 
         //Setup our handlers for disconnection
-        var disconnectedHandler = () => {
-          this.closePort();
+        var disconnectedHandler = async () => {
+          await this.closePort();
         }
 
-        super.on("close", async () => {
-          disconnectedHandler();
+        this.port.once("close", async () => {
+          this.emit(BetterSerialPortEvent.close);
+          await disconnectedHandler();
 
           //Attempt to reopen the port if we are keeping it open
           var tryIt = async () => {
+            console.log("TRY CONNECT")
+
             if (self.keepOpen) {
               try {
-                await self.open();
+                await self.openPort();
               }
               catch (e) {
                 await new Promise((resolve) => { setTimeout(resolve, 1000); });
@@ -106,38 +147,32 @@ export class BetterSerialPort extends SerialPort {
           await tryIt();
         });
 
-        super.on("error", (err) => {
-          disconnectedHandler();
+        this.port.once("open", () => {
+          this.emit(BetterSerialPortEvent.open);
         });
 
-        super.on("data", () => {
-          if (self.disconnectTimeoutMS != false && typeof self.disconnectTimeoutMS == "number") {
+        this.port.on("error", async (err) => {
+          this.emit(BetterSerialPortEvent.error, err);
+          await disconnectedHandler();
+        });
+
+        this.port.on("data", (data: any) => {
+          this.emit(BetterSerialPortEvent.data, data);
+          if (self.closeOnNoData == true) {
             clearTimeout(self.disconnectedChecker);
-            self.disconnectedChecker = setTimeout(disconnectedHandler, self.disconnectTimeoutMS);
+            self.disconnectedChecker = setTimeout(async () => { await disconnectedHandler(); }, self.disconnectTimeoutMS);
           }
         });
 
-        await self.open();
+        await this.port.open();
         resolve();
       }
       else {
-        reject(this.isOpen == false ? "Port does not exist" : "Port is already open");
+        reject(this.port == undefined ? "Port does not exist" : (this.port.isOpen ? "Port is already open" : "Port exists but is not open"));
       }
     });
   }
 
-  /**
-   * Replace the open method with a promise
-   * @returns A promise
-   */
-  open(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      super.open((err) => {
-        if (err) { reject(err); return; }
-        resolve();
-      });
-    });
-  }
 
   /**
    * Close the port
@@ -147,18 +182,48 @@ export class BetterSerialPort extends SerialPort {
    */
   closePort(keepClosed: boolean = false, disconnectError?: Error): Promise<void> {
     return new Promise((resolve, reject) => {
-      if (!this.keepOpen || keepClosed == true) {
+      if (keepClosed == true) {
         this.keepOpen = false;
       }
-      if (this.isOpen) {
-        super.close((err) => {
-          if (err) { reject(err); return; }
+
+      //Destroy the old port if it exists
+      if (this.port) {
+        if (this.port.isOpen) {
+          this.port.close((err) => {
+            if (err) { reject(err); return; }
+            this.port?.removeAllListeners();
+            this.port?.destroy();
+            this.port = undefined;
+            resolve();
+          }, disconnectError);
+        }
+        else {
           resolve();
-        }, disconnectError);
+        }
       }
       else {
         resolve();
       }
     });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  write(chunk: any, encoding?: BufferEncoding, cb?: (error: Error | null | undefined) => void): boolean
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  write(chunk: any, cb?: (error: Error | null | undefined) => void): boolean
+  write(data: any, encoding?: any, callback?: any): boolean {
+    if (!callback) { callback = (err: any) => { this.emit(BetterSerialPortEvent.error, err); } }
+    if (!this.port) { callback("Port does not exist"); throw "Port does not exist"; }
+    if (this.port.isOpen == false) { callback("Port is not open"); throw "Port is not open"; }
+    if (this.port.writable == false) { callback("Port is not writable"); throw "Port is not writable"; }
+    this.port.write(data, encoding, async (err) => {
+      if (err) {
+        callback(err);
+      }
+      else {
+        callback(true);
+      }
+    });
+    return true;
   }
 }

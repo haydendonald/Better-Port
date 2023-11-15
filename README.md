@@ -12,12 +12,17 @@ This is just an extension of [Node Serial Port](https://github.com/serialport/no
 However, this project does add some extra functionality:
 
 ### Extra methods
-* `openPort(): Promise<void>`: Will open the port and start the checker if required
-* `closePort(): Promise<void>`: Will close the port and stop the checker
+* `openPort(keepOpen?: boolean): Promise<void>`: Will open the port
+* `closePort(keepClosed: boolean = false, disconnectError?: Error): Promise<void>`: Will close the port and attempt reopen if keepClosed is not set to true
+* `portOpen(): boolean`: If the port is currently open
 
 ### Extra Options
 * `BetterSerialPortOptions.keepOpen: boolean`: Should the port be kept open?
-* `BetterSerialPortOptions.disconnectTimeoutMS: number | boolean`: How often should we check the port? Set this to `false` to disable the checker
+* `BetterSerialPortOptions.closeOnNoData: number | boolean`: Should we close (and reopen) the port if we don't get any data
+* `BetterSerialPortOptions.disconnectTimeoutMS: number | boolean`: How long of no data before assuming disconnection
+
+## Overriden methods
+* `write()`: Will re-open the port if not successful
 
 # Example
 ```javascript
@@ -28,6 +33,7 @@ const serialport = new BetterSerialPort.BetterSerialPort({
     path: "/dev/example",
     baudRate: 9600,
     keepOpen: true,
+    closeOnNoData: true,
     disconnectTimeoutMS: 1000
 });
 
@@ -48,4 +54,16 @@ serialport.on("open", () => {
 serialport.on("close", () => {
     console.log("Port disconnected");
 });
+
+//Close the port
+function close() {
+    serialport.closePort();
+}
+
+//Close the port and don't re-open it
+function stayClosed() {
+    serialport.closePort(true);
+}
+
+
 ```
