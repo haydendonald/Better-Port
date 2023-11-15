@@ -21,8 +21,12 @@ However, this project does add some extra functionality:
 * `BetterSerialPortOptions.closeOnNoData: number | boolean`: Should we close (and reopen) the port if we don't get any data
 * `BetterSerialPortOptions.disconnectTimeoutMS: number | boolean`: How long of no data before assuming disconnection
 
-## Overriden methods
+## Included serial port methods
 * `write()`: Will re-open the port if not successful
+* `flush()`: Adds a flush function with promise
+* `pipe()`: Adds the pipe method which will be moved to the new serial port when created
+
+If you need more feel free to ask or add them via a pull request. Otherwise you can call them directly `BetterSerialPort.port`
 
 # Example
 ```javascript

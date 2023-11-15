@@ -7,6 +7,7 @@ import { SerialPort, SerialPortOpenOptions } from 'serialport'
 import { AutoDetectTypes, PortInfo } from '@serialport/bindings-cpp';
 import { ErrorCallback } from '@serialport/stream';
 import { EventEmitter } from 'stream';
+import internal = require('stream');
 
 export type BetterSerialPortOptions = SerialPortOpenOptions<AutoDetectTypes> & {
   keepOpen?: boolean, //Should we keep the port open
@@ -39,7 +40,7 @@ export class BetterSerialPortEvent {
   static data = "data"
 }
 
-export class BetterSerialPort extends EventEmitter {
+export class BetterSerialPort extends internal.Writable {
   port: SerialPort | undefined;
   keepOpen: boolean;
   closeOnNoData: boolean;
@@ -47,6 +48,7 @@ export class BetterSerialPort extends EventEmitter {
   serialPortOptions: SerialPortOpenOptions<AutoDetectTypes>;
   path: string | undefined;
   disconnectedChecker: NodeJS.Timeout | undefined = undefined;
+  pipes: { destination: NodeJS.WritableStream, options?: { end?: boolean; }, returnPipe: any }[] = [];
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
     super();
     this.serialPortOptions = options;
@@ -132,8 +134,6 @@ export class BetterSerialPort extends EventEmitter {
 
           //Attempt to reopen the port if we are keeping it open
           var tryIt = async () => {
-            console.log("TRY CONNECT")
-
             if (self.keepOpen) {
               try {
                 await self.openPort();
@@ -149,6 +149,7 @@ export class BetterSerialPort extends EventEmitter {
 
         this.port.once("open", () => {
           this.emit(BetterSerialPortEvent.open);
+          this.updatePipes();
         });
 
         this.port.on("error", async (err) => {
@@ -225,5 +226,37 @@ export class BetterSerialPort extends EventEmitter {
       }
     });
     return true;
+  }
+
+  flush(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        if (!this.port) { throw "Port does not exist"; }
+        this.port.flush((err) => {
+          if (err) { reject(err); return; }
+          resolve();
+        });
+      }
+      catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  updatePipes() {
+    this.pipes.forEach(pipe => {
+      pipe.returnPipe = this.port?.pipe(pipe.destination, pipe.options);
+    });
+  }
+
+  pipe<T extends NodeJS.WritableStream>(destination: T, options?: { end?: boolean; }): T {
+    if (!this.port) { throw "Port does not exist"; }
+    this.pipes.push({ destination, options, returnPipe: this.port.pipe(destination, options) });
+    return this.pipes[this.pipes.length - 1].returnPipe;
+  }
+
+  get baudRate(): number {
+    if (!this.port) { throw "Port does not exist"; }
+    return this.port.baudRate;
   }
 }
