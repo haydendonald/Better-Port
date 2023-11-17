@@ -133,12 +133,14 @@ export class BetterSerialPort extends internal.Writable {
           await disconnectedHandler();
 
           //Attempt to reopen the port if we are keeping it open
+          await new Promise((resolve) => { setTimeout(resolve, 1000); });
           var tryIt = async () => {
             if (self.keepOpen) {
               try {
                 await self.openPort();
               }
               catch (e) {
+                await this.closePort();
                 await new Promise((resolve) => { setTimeout(resolve, 1000); });
                 await tryIt();
               }
