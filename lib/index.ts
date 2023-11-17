@@ -72,6 +72,12 @@ export class BetterSerialPort extends internal.Writable {
         catch (e) { this.emit(BetterSerialPortEvent.error, e); }
       }
     }
+
+    var exit = async () => {
+      await this.closePort();
+    }
+    process.on("exit", async function () { await exit() });
+    process.on("SIGINT", async function () { await exit(); });
   }
 
   /**
