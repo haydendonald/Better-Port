@@ -51,6 +51,7 @@ export class BetterSerialPort extends internal.Writable {
   pipes: { destination: NodeJS.WritableStream, options?: { end?: boolean; }, returnPipe: any }[] = [];
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
     super();
+    var autoOpen = options.autoOpen == undefined ? true : options.autoOpen;
     this.serialPortOptions = options;
     this.serialPortOptions.autoOpen = false;
 
@@ -62,7 +63,7 @@ export class BetterSerialPort extends internal.Writable {
     }
 
     //Auto open the port if set
-    if (options.autoOpen == true) {
+    if (autoOpen == true) {
       if (openCallback) {
         this.openPort().then(() => { openCallback(null) }).catch(openCallback);
       }
