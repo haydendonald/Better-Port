@@ -199,11 +199,12 @@ export class BetterSerialPort extends internal.Writable {
       //Destroy the old port if it exists
       if (this.port) {
         if (this.port.isOpen) {
-          this.port.close((err) => {
+          this.port.close(async (err) => {
             if (err) { reject(err); return; }
             this.port?.removeAllListeners();
             this.port?.destroy();
             this.port = undefined;
+            await new Promise((resolve) => { setTimeout(resolve, 1000); }); // Wait a second before resolving to make sure the port is actually closed
             resolve();
           }, disconnectError);
         }
