@@ -1,11 +1,11 @@
-const BetterSerialPort = require("better-serial-port");
+const BetterSerialPort = require("./dist/index.js");
 const BetterSerialPortEvent = BetterSerialPort.BetterSerialPortEvent;
 const NodeMavlink = require('node-mavlink');
 
 async function main() {
     var firstOpen = true;
     var port = new BetterSerialPort.BetterSerialPort({
-        path: "/dev/serial/by-id/usb-CubePilot_CubeOrange+_310046001751313437363430-if00",
+        path: "/dev/serial/by-id/usb-CubePilot_CubeOrange+_260041000D51323039383833-if00",
         baudRate: 912600,
         keepOpen: true,
         autoOpen: true
@@ -65,7 +65,7 @@ async function main() {
         //console.log("Port error", err);
     });
     port.on(BetterSerialPortEvent.data, (data) => {
-       console.log("Port data");
+        console.log("Port data");
     });
 
     port.openPort().then(() => {
