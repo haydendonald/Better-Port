@@ -5,6 +5,7 @@ import * as dgram from 'dgram';
 export type BetterUDPPortOptions = BetterPortOptions & dgram.SocketOptions & {
     ip?: string | string[] | undefined; //The IP address or addresses to send/listen to. If undefined will listen for clients to connect to us, then will also send to them
     bindAddress?: string | undefined; //The address to bind to if required
+    type?: "udp4" | "udp6" | undefined; //The type of UDP to use
     recPort?: number; // The port to listen on
     sendPort?: number; // The port to send to
 }
@@ -21,6 +22,9 @@ export class UDP implements BetterSerialPortI {
     }
     get writable(): boolean {
         return this.isOpen;
+    }
+    get baudRate(): number {
+        return 0;
     }
     constructor(options: BetterUDPPortOptions) {
         this.path = `udp://${options.ip}:${options.sendPort}:${options.recPort}`;
