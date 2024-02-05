@@ -6,6 +6,7 @@
 import { ErrorCallback } from '@serialport/stream';
 import internal = require('stream');
 import { Serial, BetterSerialPortOptions } from './serial';
+import { UDP, BetterUDPPortOptions } from './UDP';
 
 export interface BetterSerialPortI {
   path: string | undefined;
@@ -225,5 +226,11 @@ class BetterPort extends internal.Writable {
 export class BetterSerialPort extends BetterPort {
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
     super(options, new Serial(options), openCallback);
+  }
+}
+
+export class BetterUDPPort extends BetterPort {
+  constructor(options: BetterUDPPortOptions, openCallback?: ErrorCallback) {
+    super(options, new UDP(options), openCallback);
   }
 }
