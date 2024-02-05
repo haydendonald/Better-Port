@@ -202,7 +202,7 @@ class BetterPort extends internal.Writable {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   write(chunk: any, cb?: (error: Error | null | undefined) => void): boolean
   write(data: any, encoding?: any, callback?: any): boolean {
-    if (!callback) { callback = (err: any) => { this.emit(BetterSerialPortEvent.error, err); } }
+    if (!callback) { callback = (err: any) => { if (err) { this.emit(BetterSerialPortEvent.error, err); } } }
     return this.port.write(data, encoding, callback);
   }
 
