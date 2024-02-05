@@ -11,7 +11,6 @@ export interface BetterSerialPortI {
   path: string | undefined;
   isOpen: boolean;
   writable: boolean;
-  baudRate: number;
   portExists(): Promise<boolean>;
   portOpen(): boolean;
   openPort(openCb: () => void, closeCb: () => void, errorCb: (err: any) => void, dataCb: (data: any) => void): Promise<void>;
@@ -220,11 +219,6 @@ class BetterPort extends internal.Writable {
     if (!this.port) { throw "Port does not exist"; }
     this.pipes.push({ destination, options, returnPipe: this.port.pipe(destination, options) });
     return this.pipes[this.pipes.length - 1].returnPipe;
-  }
-
-  get baudRate(): number {
-    if (!this.port) { throw "Port does not exist"; }
-    return this.port.baudRate;
   }
 }
 
