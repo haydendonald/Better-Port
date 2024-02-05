@@ -126,9 +126,7 @@ export class UDP implements BetterSerialPortI {
                 var port = this.options.sendPort || this.clients[i].port;
                 if (port) {
                     this.port.send(data, port, this.clients[i].ip, (error: Error | null | undefined) => {
-                        if (error) {
-                            if (callback) { callback(error); }
-                        }
+                        if (callback) { callback(error == null ? undefined : error); }
                     });
                 }
             }
