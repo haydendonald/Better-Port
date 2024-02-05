@@ -3,17 +3,33 @@
  * By Hayden Donald 2023
  */
 
-import { SerialPort, SerialPortOpenOptions } from 'serialport'
-import { AutoDetectTypes, PortInfo } from '@serialport/bindings-cpp';
 import { ErrorCallback } from '@serialport/stream';
-import { EventEmitter } from 'stream';
 import internal = require('stream');
+import { Serial, BetterSerialPortOptions } from './serial';
 
-export type BetterSerialPortOptions = SerialPortOpenOptions<AutoDetectTypes> & {
-  keepOpen?: boolean, //Should we keep the port open
-  closeOnNoData?: boolean, //Should we close the port if no data is received
-  disconnectTimeoutMS?: number //How long should we wait before disconnecting on no data
+export interface BetterSerialPortI {
+  path: string | undefined;
+  isOpen: boolean;
+  writable: boolean;
+  baudRate: number;
+  portExists(): Promise<boolean>;
+  portOpen(): boolean;
+  openPort(openCb: () => void, closeCb: () => void, errorCb: (err: any) => void, dataCb: (data: any) => void): Promise<void>;
+  closePort(disconnectError?: Error): Promise<void>;
+  write(data: any, encoding?: any, callback?: any): boolean;
+  flush(): Promise<void>;
+  pipe<T extends NodeJS.WritableStream>(destination: T, options?: { end?: boolean; }): T;
 }
+
+export interface BetterPortOptions {
+  path: string | undefined; //The path
+  autoOpen?: boolean; //Should the port be opened automatically on creation
+  keepOpen?: boolean; //Should we keep the port open
+  closeOnNoData?: boolean; //Should we close the port if no data is received
+  disconnectTimeoutMS?: number | undefined; //How long should we wait before disconnecting on no data
+}
+
+
 export class BetterSerialPortEvent {
   /** 
   * Will emit an error if one occurs
@@ -40,37 +56,36 @@ export class BetterSerialPortEvent {
   static data = "data"
 }
 
-export class BetterSerialPort extends internal.Writable {
-  port: SerialPort | undefined;
+
+class BetterPort extends internal.Writable {
+  port: BetterSerialPortI;
   keepOpen: boolean;
   closeOnNoData: boolean;
   disconnectTimeoutMS: number;
-  serialPortOptions: SerialPortOpenOptions<AutoDetectTypes>;
-  path: string | undefined;
   disconnectedChecker: NodeJS.Timeout | undefined = undefined;
   pipes: { destination: NodeJS.WritableStream, options?: { end?: boolean; }, returnPipe: any }[] = [];
-  constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
+  get path(): string | undefined { return this.port.path; }
+
+  constructor(options: BetterPortOptions, port: BetterSerialPortI, openCallback?: ErrorCallback) {
     super();
     var autoOpen = options.autoOpen == undefined ? true : options.autoOpen;
-    this.serialPortOptions = options;
-    this.serialPortOptions.autoOpen = false;
-
     this.keepOpen = options.keepOpen == undefined ? true : options.keepOpen;
     this.closeOnNoData = options.closeOnNoData == undefined ? true : options.closeOnNoData;
     this.disconnectTimeoutMS = options.disconnectTimeoutMS != undefined ? options.disconnectTimeoutMS : 5000;
-    if (typeof options.path == "string") {
-      this.path = options.path;
-    }
+    this.port = port;
 
     //Auto open the port if set
     if (autoOpen == true) {
-      if (openCallback) {
-        this.openPort().then(() => { openCallback(null) }).catch(openCallback);
-      }
-      else {
-        try { this.openPort(); }
-        catch (e) { this.emit(BetterSerialPortEvent.error, e); }
-      }
+      //Setup a timeout here so we can await the open, since we can't do this in a constructor
+      setTimeout(async () => {
+        if (openCallback) {
+          this.openPort().then(() => { openCallback(null) }).catch(openCallback);
+        }
+        else {
+          try { await this.openPort(); }
+          catch (e) { this.emit(BetterSerialPortEvent.error, e); }
+        }
+      }, 0);
     }
 
     var exit = async () => {
@@ -85,32 +100,17 @@ export class BetterSerialPort extends internal.Writable {
  * @returns A promise<boolean>
  */
   portExists(): Promise<boolean> {
-    return new Promise(async (resolve, reject) => {
-      if (!this.path) {
-        resolve(false);
-        return;
-      }
-
-      try {
-        var found = false;
-        var ports: PortInfo[] = await SerialPort.list();
-        for (var i in ports) {
-          if (ports[i].path == this.path || ports[i].pnpId == this.path.split("/").pop()) {
-            found = true;
-            break;
-          }
-        }
-        resolve(found);
-      }
-      catch (e) { reject(e); }
-    });
+    if (!this.port.path) {
+      return Promise.resolve(false);
+    }
+    return this.port.portExists();
   }
 
   /**
    * Is the port currently open
    */
   portOpen(): boolean {
-    return this.port != undefined && this.port.isOpen;
+    return this.port.portOpen();
   }
 
   /**
@@ -123,21 +123,15 @@ export class BetterSerialPort extends internal.Writable {
     if (keepOpen != undefined) { this.keepOpen = keepOpen; }
     return new Promise(async (resolve, reject) => {
       //Check if the port actually exists first and try to open it
-
-      if (this.portOpen() == false && (await this.portExists()) == true) {
-
-        //Recreate the port
-        await this.closePort();
-        this.port = new SerialPort(this.serialPortOptions);
-
-        //Setup our handlers for disconnection
-        var disconnectedHandler = async () => {
-          await this.closePort();
+      if (self.portOpen() == false && (await self.portExists()) == true) {
+        var openCb = () => {
+          self.emit(BetterSerialPortEvent.open);
+          self.updatePipes();
         }
 
-        this.port.once("close", async () => {
-          this.emit(BetterSerialPortEvent.close);
-          await disconnectedHandler();
+        var closeCb = async () => {
+          self.emit(BetterSerialPortEvent.close);
+          await self.closePort();
 
           //Attempt to reopen the port if we are keeping it open
           await new Promise((resolve) => { setTimeout(resolve, 1000); });
@@ -147,42 +141,50 @@ export class BetterSerialPort extends internal.Writable {
                 await self.openPort();
               }
               catch (e) {
-                await this.closePort();
+                await self.closePort();
                 await new Promise((resolve) => { setTimeout(resolve, 1000); });
                 await tryIt();
               }
             }
           };
           await tryIt();
-        });
+        }
 
-        this.port.once("open", () => {
-          this.emit(BetterSerialPortEvent.open);
-          this.updatePipes();
-        });
+        var errorCb = async (err: any) => {
+          self.emit(BetterSerialPortEvent.error, err);
+          if (self.port.isOpen) {
+            await self.closePort();
+          }
+          else {
+            await closeCb();
+          }
+        }
 
-        this.port.on("error", async (err) => {
-          this.emit(BetterSerialPortEvent.error, err);
-          await disconnectedHandler();
-        });
-
-        this.port.on("data", (data: any) => {
-          this.emit(BetterSerialPortEvent.data, data);
+        var dataCb = (data: any) => {
+          self.emit(BetterSerialPortEvent.data, data);
           if (self.closeOnNoData == true) {
             clearTimeout(self.disconnectedChecker);
-            self.disconnectedChecker = setTimeout(async () => { await disconnectedHandler(); }, self.disconnectTimeoutMS);
+            self.disconnectedChecker = setTimeout(async () => {
+              await self.closePort();
+            }, self.disconnectTimeoutMS);
           }
-        });
+        }
 
-        await this.port.open();
-        resolve();
+        //Ok close and open it again
+        try {
+          await self.closePort();
+          await self.port.openPort(openCb, closeCb, errorCb, dataCb);
+          resolve();
+        }
+        catch (e) {
+          reject(e);
+        }
       }
       else {
-        reject(this.port == undefined ? "Port does not exist" : (this.port.isOpen ? "Port is already open" : "Port exists but is not open"));
+        reject(self.port.isOpen ? "Port is already open" : `Port ${self.port.path} does not exist`);
       }
     });
   }
-
 
   /**
    * Close the port
@@ -191,31 +193,8 @@ export class BetterSerialPort extends internal.Writable {
    * @returns A promise
    */
   closePort(keepClosed: boolean = false, disconnectError?: Error): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (keepClosed == true) {
-        this.keepOpen = false;
-      }
-
-      //Destroy the old port if it exists
-      if (this.port) {
-        if (this.port.isOpen) {
-          this.port.close(async (err) => {
-            if (err) { reject(err); return; }
-            this.port?.removeAllListeners();
-            this.port?.destroy();
-            this.port = undefined;
-            await new Promise((resolve) => { setTimeout(resolve, 1000); }); // Wait a second before resolving to make sure the port is actually closed
-            resolve();
-          }, disconnectError);
-        }
-        else {
-          resolve();
-        }
-      }
-      else {
-        resolve();
-      }
-    });
+    if (keepClosed == true) { this.keepOpen = false; }
+    return this.port.closePort(disconnectError);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -224,33 +203,11 @@ export class BetterSerialPort extends internal.Writable {
   write(chunk: any, cb?: (error: Error | null | undefined) => void): boolean
   write(data: any, encoding?: any, callback?: any): boolean {
     if (!callback) { callback = (err: any) => { this.emit(BetterSerialPortEvent.error, err); } }
-    if (!this.port) { callback("Port does not exist"); throw "Port does not exist"; }
-    if (this.port.isOpen == false) { callback("Port is not open"); throw "Port is not open"; }
-    if (this.port.writable == false) { callback("Port is not writable"); throw "Port is not writable"; }
-    this.port.write(data, encoding, async (err) => {
-      if (err) {
-        callback(err);
-      }
-      else {
-        callback(true);
-      }
-    });
-    return true;
+    return this.port.write(data, encoding, callback);
   }
 
   flush(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      try {
-        if (!this.port) { throw "Port does not exist"; }
-        this.port.flush((err) => {
-          if (err) { reject(err); return; }
-          resolve();
-        });
-      }
-      catch (e) {
-        reject(e);
-      }
-    });
+    return this.port.flush();
   }
 
   updatePipes() {
@@ -268,5 +225,11 @@ export class BetterSerialPort extends internal.Writable {
   get baudRate(): number {
     if (!this.port) { throw "Port does not exist"; }
     return this.port.baudRate;
+  }
+}
+
+export class BetterSerialPort extends BetterPort {
+  constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
+    super(options, new Serial(options), openCallback);
   }
 }
