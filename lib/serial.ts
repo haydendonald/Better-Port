@@ -85,13 +85,8 @@ export class Serial implements BetterPortI {
         if (!this.port) { callback("Port does not exist"); return false; }
         if (this.port.isOpen == false) { callback("Port is not open"); return false; }
         if (this.port.writable == false) { callback("Port is not writable"); return false; }
-        return this.port.write(data, encoding, async (err) => {
-            if (err) {
-                callback(err);
-            }
-            else {
-                callback(true);
-            }
+        return this.port.write(data, encoding, async (error) => {
+            if (callback) { callback(error == null ? undefined : error); }
         });
     }
     flush(): Promise<void> {
