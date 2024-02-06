@@ -1,5 +1,5 @@
-const BetterSerialPort = require("./dist/index.js");
-const BetterSerialPortEvent = BetterSerialPort.BetterSerialPortEvent;
+const BetterPort = require("./dist/index.js");
+const BetterPortEvent = BetterPort.BetterPortEvent;
 const NodeMavlink = require('node-mavlink');
 
 var mode = "udp"; //serial or udp
@@ -9,7 +9,7 @@ async function main() {
 
     if (mode == "serial") {
         //Listen to an autopilot over serial
-        var port = new BetterSerialPort.BetterSerialPort({
+        var port = new BetterPort.BetterSerialPort({
             path: "/dev/serial/by-id/usb-CubePilot_CubeOrange+_260041000D51323039383833-if00",
             baudRate: 912600,
             keepOpen: true,
@@ -18,12 +18,12 @@ async function main() {
     }
     else if (mode == "udp") {
         //Listen to mavproxy on --out udp::6020
-        var port = new BetterSerialPort.BetterUDPPort({
+        var port = new BetterPort.BetterUDPPort({
             recPort: 6020
         });
     }
 
-    port.on(BetterSerialPortEvent.open, () => {
+    port.on(BetterPortEvent.open, () => {
         console.log("Port opened");
 
         if (firstOpen == true) {
@@ -70,13 +70,13 @@ async function main() {
             }, time += 2000);
         }
     });
-    port.on(BetterSerialPortEvent.close, () => {
+    port.on(BetterPortEvent.close, () => {
         console.log("Port closed");
     });
-    port.on(BetterSerialPortEvent.error, (err) => {
+    port.on(BetterPortEvent.error, (err) => {
         console.log("Port error: ", err);
     });
-    port.on(BetterSerialPortEvent.data, (data) => {
+    port.on(BetterPortEvent.data, (data) => {
         console.log("Port data");
     });
 

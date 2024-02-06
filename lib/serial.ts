@@ -1,10 +1,10 @@
-import { BetterPortOptions, BetterSerialPortI } from './index';
+import { BetterPortOptions, BetterPortI } from './index';
 import { SerialPort, SerialPortOpenOptions } from 'serialport'
 import { AutoDetectTypes, PortInfo } from '@serialport/bindings-cpp';
 
 export type BetterSerialPortOptions = BetterPortOptions & SerialPortOpenOptions<AutoDetectTypes>;
 
-export class Serial implements BetterSerialPortI {
+export class Serial implements BetterPortI {
     port: SerialPort | undefined;
     path: string | undefined;
     serialPortOptions: SerialPortOpenOptions<AutoDetectTypes>;
@@ -19,7 +19,6 @@ export class Serial implements BetterSerialPortI {
         return this.port.baudRate;
     }
 
-    
     constructor(options: BetterSerialPortOptions) {
         this.serialPortOptions = options;
         this.serialPortOptions.autoOpen = false;

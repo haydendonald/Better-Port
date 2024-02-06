@@ -1,5 +1,5 @@
 /**
- * This is a basic wrapper around the node serial port library (https://github.com/serialport/node-serialport) that makes sure the port stays connected
+ * This is a project to wrap around ports such as serial/udp to provide a constant connection and some helpers
  * By Hayden Donald 2023
  */
 
@@ -8,8 +8,7 @@ import internal = require('stream');
 import { Serial, BetterSerialPortOptions } from './serial';
 import { UDP, BetterUDPPortOptions } from './UDP';
 
-export interface BetterSerialPortI {
-  path: string | undefined;
+export interface BetterPortI {
   isOpen: boolean;
   writable: boolean;
   portExists(): Promise<boolean>;
@@ -22,7 +21,6 @@ export interface BetterSerialPortI {
 }
 
 export interface BetterPortOptions {
-  path: string | undefined; //The path
   autoOpen?: boolean; //Should the port be opened automatically on creation
   keepOpen?: boolean; //Should we keep the port open
   closeOnNoData?: boolean; //Should we close the port if no data is received
@@ -30,7 +28,7 @@ export interface BetterPortOptions {
 }
 
 
-export class BetterSerialPortEvent {
+export class BetterPortEvent {
   /** 
   * Will emit an error if one occurs
   * @event
@@ -57,16 +55,15 @@ export class BetterSerialPortEvent {
 }
 
 
-class BetterPort extends internal.Writable {
-  port: BetterSerialPortI;
+class BetterPort<T extends BetterPortI> extends internal.Writable {
+  port: T;
   keepOpen: boolean;
   closeOnNoData: boolean;
   disconnectTimeoutMS: number;
   disconnectedChecker: NodeJS.Timeout | undefined = undefined;
   pipes: { destination: NodeJS.WritableStream, options?: { end?: boolean; }, returnPipe: any }[] = [];
-  get path(): string | undefined { return this.port.path; }
 
-  constructor(options: BetterPortOptions, port: BetterSerialPortI, openCallback?: ErrorCallback) {
+  constructor(options: BetterPortOptions, port: T, openCallback?: any) {
     super();
     var autoOpen = options.autoOpen == undefined ? true : options.autoOpen;
     this.keepOpen = options.keepOpen == undefined ? true : options.keepOpen;
@@ -83,7 +80,7 @@ class BetterPort extends internal.Writable {
         }
         else {
           try { await this.openPort(); }
-          catch (e) { this.emit(BetterSerialPortEvent.error, e); }
+          catch (e) { this.emit(BetterPortEvent.error, e); }
         }
       }, 0);
     }
@@ -100,9 +97,6 @@ class BetterPort extends internal.Writable {
  * @returns A promise<boolean>
  */
   portExists(): Promise<boolean> {
-    if (!this.port.path) {
-      return Promise.resolve(false);
-    }
     return this.port.portExists();
   }
 
@@ -125,12 +119,12 @@ class BetterPort extends internal.Writable {
       //Check if the port actually exists first and try to open it
       if (self.portOpen() == false && (await self.portExists()) == true) {
         var openCb = () => {
-          self.emit(BetterSerialPortEvent.open);
+          self.emit(BetterPortEvent.open);
           self.updatePipes();
         }
 
         var closeCb = async () => {
-          self.emit(BetterSerialPortEvent.close);
+          self.emit(BetterPortEvent.close);
           await self.closePort();
 
           //Attempt to reopen the port if we are keeping it open
@@ -151,7 +145,7 @@ class BetterPort extends internal.Writable {
         }
 
         var errorCb = async (err: any) => {
-          self.emit(BetterSerialPortEvent.error, err);
+          self.emit(BetterPortEvent.error, err);
           if (self.port.isOpen) {
             await self.closePort();
           }
@@ -161,7 +155,7 @@ class BetterPort extends internal.Writable {
         }
 
         var dataCb = (data: any) => {
-          self.emit(BetterSerialPortEvent.data, data);
+          self.emit(BetterPortEvent.data, data);
           if (self.closeOnNoData == true) {
             clearTimeout(self.disconnectedChecker);
             self.disconnectedChecker = setTimeout(async () => {
@@ -181,7 +175,7 @@ class BetterPort extends internal.Writable {
         }
       }
       else {
-        reject(self.port.isOpen ? "Port is already open" : `Port ${self.port.path} does not exist`);
+        reject(self.port.isOpen ? "Port is already open" : `Port does not exist`);
       }
     });
   }
@@ -206,7 +200,7 @@ class BetterPort extends internal.Writable {
       callback = encoding;
       encoding = undefined;
     }
-    if (!callback) { callback = (err: any) => { if (err) { this.emit(BetterSerialPortEvent.error, err); } } }
+    if (!callback) { callback = (err: any) => { if (err) { this.emit(BetterPortEvent.error, err); } } }
     return this.port.write(data, encoding, callback);
   }
 
@@ -227,14 +221,14 @@ class BetterPort extends internal.Writable {
   }
 }
 
-export class BetterSerialPort extends BetterPort {
+export class BetterSerialPort extends BetterPort<Serial> {
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
     super(options, new Serial(options), openCallback);
   }
 }
 
-export class BetterUDPPort extends BetterPort {
-  constructor(options: BetterUDPPortOptions, openCallback?: ErrorCallback) {
+export class BetterUDPPort extends BetterPort<UDP> {
+  constructor(options: BetterUDPPortOptions, openCallback?: any) {
     super(options, new UDP(options), openCallback);
   }
 }
