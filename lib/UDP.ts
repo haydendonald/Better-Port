@@ -10,6 +10,7 @@ export type BetterUDPPortOptions = BetterPortOptions & dgram.SocketOptions & {
 }
 
 export class UDP implements BetterPortI {
+    portType: string = "UDP";
     port: dgram.Socket | undefined;
     options: BetterUDPPortOptions;
     connected: boolean = false;

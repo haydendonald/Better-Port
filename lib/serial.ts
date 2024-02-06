@@ -5,6 +5,7 @@ import { AutoDetectTypes, PortInfo } from '@serialport/bindings-cpp';
 export type BetterSerialPortOptions = BetterPortOptions & SerialPortOpenOptions<AutoDetectTypes>;
 
 export class Serial implements BetterPortI {
+    portType: string = "Serial";
     port: SerialPort | undefined;
     path: string | undefined;
     serialPortOptions: SerialPortOpenOptions<AutoDetectTypes>;

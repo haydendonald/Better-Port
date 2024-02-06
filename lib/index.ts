@@ -5,10 +5,11 @@
 
 import { ErrorCallback } from '@serialport/stream';
 import internal = require('stream');
-import { Serial, BetterSerialPortOptions } from './serial';
-import { UDP, BetterUDPPortOptions } from './UDP';
+import * as Serial from './serial';
+import * as UDP from './UDP';
 
 export interface BetterPortI {
+  portType: string;
   isOpen: boolean;
   writable: boolean;
   path: string | undefined;
@@ -67,6 +68,10 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
   get path(): string | undefined {
     if (!this.port) { return undefined; }
     return this.port.path;
+  }
+
+  get type(): string {
+    return this.port.portType;
   }
 
   constructor(options: BetterPortOptions, port: T, openCallback?: any) {
@@ -227,14 +232,17 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
   }
 }
 
-export class BetterSerialPort extends BetterPort<Serial> {
+export type BetterSerialPortOptions = Serial.BetterSerialPortOptions;
+export class BetterSerialPort extends BetterPort<Serial.Serial> {
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
-    super(options, new Serial(options), openCallback);
+    super(options, new Serial.Serial(options), openCallback);
   }
 }
 
-export class BetterUDPPort extends BetterPort<UDP> {
+
+export type BetterUDPPortOptions = UDP.BetterUDPPortOptions;
+export class BetterUDPPort extends BetterPort<UDP.UDP> {
   constructor(options: BetterUDPPortOptions, openCallback?: any) {
-    super(options, new UDP(options), openCallback);
+    super(options, new UDP.UDP(options), openCallback);
   }
 }
