@@ -1,5 +1,8 @@
-# Better Serial Port
-This is a basic wrapper around [Node Serial Port](https://github.com/serialport/node-serialport) that adds some extra functionality that i feel it is lacking.
+# Better Port
+This is a basic wrapper for ports that adds some extra functionality to provide a constant connection that i feel is lacking.
+
+This project originally started as a wrapper called [Better-Serial-Port](https://www.npmjs.com/package/better-serial-port) for [Node Serial Port](https://github.com/serialport/node-serialport) to provide a constant connection but is now written to support
+different protocols such as UDP, thus a rename to Better Port.
 
 # Features
 * The port is monitored. If it disconnects it will emit the `close` event and when it is detected again it will automatically reconnect and emit the `open` event
@@ -7,67 +10,102 @@ This is a basic wrapper around [Node Serial Port](https://github.com/serialport/
 * If there is no data for a specific period of time it will assume the port disconnected
 
 # How to use
-This is just an extension of [Node Serial Port](https://github.com/serialport/node-serialport) so check out the [docs](https://serialport.io/docs/) for that project. 
+Currently this project supports the following ports:
+## [Node Serial Port](https://github.com/serialport/node-serialport) ([docs](https://serialport.io/docs/))
+```javascript
+//Create the port
+const BetterPort = require("./dist/index.js");
+const BetterPortEvent = BetterPort.BetterPortEvent;
+var port = new BetterPort.BetterSerialPort({
+    path: "",
+    baudRate: 912600,
+    keepOpen: true,
+    autoOpen: true
+    //Any extra open options for serial port
+});
 
-However, this project does add some extra functionality:
+//Setup our events
+port.on(BetterPortEvent.open, () => {
+    console.log("Port opened");
+});
+port.on(BetterPortEvent.close, () => {
+    console.log("Port closed");
+});
+port.on(BetterPortEvent.error, (err) => {
+    console.log("Port error: ", err);
+});
+port.on(BetterPortEvent.data, (data) => {
+    console.log("Port data: " + data.toString());
+});
+
+//Open the port
+port.openPort().then(() => {
+    console.log("Port created!");
+}).catch((err) => {
+    console.log("Port open error: ", err);
+});
+```
+
+## [UDP (dgram)](https://nodejs.org/api/dgram.html)
+```javascript
+const BetterPort = require("./dist/index.js");
+const BetterPortEvent = BetterPort.BetterPortEvent;
+
+//Open a UDP server on port 7000
+var port = new BetterPort.BetterUDPPort({
+    recPort: 7000,
+    keepOpen: true,
+    autoOpen: true
+    //Any extra open options for dram
+});
+
+//Setup our events
+port.on(BetterPortEvent.open, () => {
+    console.log("Port opened");
+});
+port.on(BetterPortEvent.close, () => {
+    console.log("Port closed");
+});
+port.on(BetterPortEvent.error, (err) => {
+    console.log("Port error: ", err);
+});
+port.on(BetterPortEvent.data, (data) => {
+    console.log("Port data: " + data.toString());
+});
+
+//Open the port
+port.openPort().then(() => {
+    console.log("Port created!");
+}).catch((err) => {
+    console.log("Port open error: ", err);
+});
+```
+
+This project does add some extra functionality to these as well:
 
 ### Extra methods
-* `openPort(keepOpen?: boolean): Promise<void>`: Will open the port
-* `closePort(keepClosed: boolean = false, disconnectError?: Error): Promise<void>`: Will close the port and attempt reopen if keepClosed is not set to true
-* `portOpen(): boolean`: If the port is currently open
+```typescript
+portExists(): Promise<boolean> //Does the port exist
+portOpen(): boolean //Is the port currently open
+openPort(keepOpen?: boolean): Promise<void> //Will open the port
+closePort(keepClosed: boolean = false, disconnectError?: Error): Promise<void> //Will close the port and attempt reopen if keepClosed is not set to true
+portOpen(): boolean //If the port is currently open
+```
 
 ### Extra Options
-* `BetterSerialPortOptions.keepOpen: boolean`: Should the port be kept open?
-* `BetterSerialPortOptions.closeOnNoData: number | boolean`: Should we close (and reopen) the port if we don't get any data
-* `BetterSerialPortOptions.disconnectTimeoutMS: number | boolean`: How long of no data before assuming disconnection
+```typescript
+  autoOpen?: boolean; //Should the port be opened automatically on creation
+  keepOpen?: boolean; //Should we keep the port open
+  closeOnNoData?: boolean; //Should we close the port if no data is received
+  disconnectTimeoutMS?: number | undefined; //How long should we wait before disconnecting on no data
+```
 
-## Included serial port methods
-* `write()`: Will re-open the port if not successful
-* `flush()`: Adds a flush function with promise
-* `pipe()`: Adds the pipe method which will be moved to the new serial port when created
-
-If you need more feel free to ask or add them via a pull request. Otherwise you can call them directly `BetterSerialPort.port`
-
-# Example
-```javascript
-const BetterSerialPort = require("better-serial-port");
-
-//Create the port and keep it open
-const serialport = new BetterSerialPort.BetterSerialPort({
-    path: "/dev/example",
-    baudRate: 9600,
-    keepOpen: true,
-    closeOnNoData: true,
-    disconnectTimeoutMS: 1000
-});
-
-//Write example
-serialport.write("Hello World!");
-
-//Print out any data
-serialport.on("data", (data) => {
-    console.log(data);
-});
-
-//When the port is connected
-serialport.on("open", () => {
-    console.log("Port connected!");
-});
-
-//When the port is disconnected
-serialport.on("close", () => {
-    console.log("Port disconnected");
-});
-
-//Close the port
-function close() {
-    serialport.closePort();
-}
-
-//Close the port and don't re-open it
-function stayClosed() {
-    serialport.closePort(true);
-}
-
-
+## Overridden methods
+The following methods cab be used normally but are replaced by this project
+```typescript
+write(chunk: any, encoding?: BufferEncoding, cb?: (error: Error | null | undefined) => void): boolean
+write(chunk: any, cb?: (error: Error | null | undefined) => void): boolean
+write(data: any, encoding?: any, callback?: any): boolean
+flush()
+pipe<T extends NodeJS.WritableStream>(destination: T, options?: { end?: boolean; }): T
 ```
