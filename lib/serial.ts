@@ -18,7 +18,6 @@ export class Serial implements BetterPortI {
         if (this.port == undefined) return 0;
         return this.port.baudRate;
     }
-
     constructor(options: BetterSerialPortOptions) {
         this.serialPortOptions = options;
         this.serialPortOptions.autoOpen = false;

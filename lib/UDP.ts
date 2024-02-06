@@ -18,6 +18,12 @@ export class UDP implements BetterPortI {
     get isOpen(): boolean {
         return this.port != undefined && this.connected;
     }
+    get path(): string | undefined {
+        if (!ip) { return undefined; }
+        var ip = this.options.ip;
+        if (Array.isArray(ip)) { ip = `[${ip.join(",")}]`; }
+        return `${this.options.type}://${ip}:${this.options.recPort}:${this.options.sendPort}`
+    }
     get writable(): boolean {
         return this.isOpen;
     }

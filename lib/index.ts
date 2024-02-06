@@ -11,6 +11,7 @@ import { UDP, BetterUDPPortOptions } from './UDP';
 export interface BetterPortI {
   isOpen: boolean;
   writable: boolean;
+  path: string | undefined;
   portExists(): Promise<boolean>;
   portOpen(): boolean;
   openPort(openCb: () => void, closeCb: () => void, errorCb: (err: any) => void, dataCb: (data: any) => void): Promise<void>;
@@ -62,6 +63,11 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
   disconnectTimeoutMS: number;
   disconnectedChecker: NodeJS.Timeout | undefined = undefined;
   pipes: { destination: NodeJS.WritableStream, options?: { end?: boolean; }, returnPipe: any }[] = [];
+
+  get path(): string | undefined {
+    if (!this.port) { return undefined; }
+    return this.port.path;
+  }
 
   constructor(options: BetterPortOptions, port: T, openCallback?: any) {
     super();
