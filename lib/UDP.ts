@@ -26,6 +26,21 @@ export class UDP implements BetterSerialPortI {
     get baudRate(): number {
         return 0;
     }
+    get recPort(): number {
+        return this.options.recPort || 0;
+    }
+    get sendPort(): number {
+        return this.options.sendPort || 0;
+    }
+    get ip(): string | string[] | undefined {
+        return this.options.ip;
+    }
+    get type(): "udp4" | "udp6" | undefined {
+        return this.options.type;
+    }
+    get bindAddress(): string | undefined {
+        return this.options.bindAddress;
+    }
     constructor(options: BetterUDPPortOptions) {
         this.path = `udp://${options.ip}:${options.sendPort}:${options.recPort}`;
         if (typeof options.ip == "string") {
