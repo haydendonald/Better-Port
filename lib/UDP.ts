@@ -64,6 +64,11 @@ export class UDP implements BetterPortI {
         if (!options.type) { options.type = "udp4" }
         this.passThough = new PassThrough();
         this.options = options;
+
+        //If there is no recPort randomly generate one
+        if (!this.options.recPort || this.options.recPort == 0) {
+            this.options.recPort = Math.floor(Math.random() * 9999) + 1000;
+        }
     }
 
     portExists(): Promise<boolean> {
