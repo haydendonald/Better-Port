@@ -8,6 +8,11 @@ import internal = require('stream');
 import * as Serial from './serial';
 import * as UDP from './UDP';
 
+export enum BetterPortType {
+  Serial = "Serial",
+  UDP = "UDP"
+}
+
 export interface BetterPortI {
   portType: string;
   isOpen: boolean;

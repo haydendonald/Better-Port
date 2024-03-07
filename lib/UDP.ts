@@ -1,5 +1,5 @@
 import { PassThrough } from 'stream';
-import { BetterPortOptions, BetterPortI } from './index';
+import { BetterPortOptions, BetterPortI, BetterPortType } from './index';
 import * as dgram from 'dgram';
 
 export type BetterUDPPortOptions = BetterPortOptions & dgram.SocketOptions & {
@@ -10,7 +10,7 @@ export type BetterUDPPortOptions = BetterPortOptions & dgram.SocketOptions & {
 }
 
 export class UDP implements BetterPortI {
-    portType: string = "UDP";
+    portType: string = BetterPortType.UDP;
     port: dgram.Socket | undefined;
     options: BetterUDPPortOptions;
     connected: boolean = false;

@@ -1,11 +1,11 @@
-import { BetterPortOptions, BetterPortI } from './index';
+import { BetterPortOptions, BetterPortI, BetterPortType } from './index';
 import { SerialPort, SerialPortOpenOptions } from 'serialport'
 import { AutoDetectTypes, PortInfo } from '@serialport/bindings-cpp';
 
 export type BetterSerialPortOptions = BetterPortOptions & SerialPortOpenOptions<AutoDetectTypes>;
 
 export class Serial implements BetterPortI {
-    portType: string = "Serial";
+    portType: string = BetterPortType.Serial;
     port: SerialPort | undefined;
     path: string | undefined;
     serialPortOptions: SerialPortOpenOptions<AutoDetectTypes>;
