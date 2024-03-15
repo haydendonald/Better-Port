@@ -129,6 +129,7 @@ export class UDP implements BetterPortI {
 
             var destroy = async function () {
                 if (self.options.ip == undefined) { self.clients = []; } // Clear out any clients
+                self.passThough = new PassThrough();
                 self.port?.removeAllListeners();
                 self.port?.unref();
                 self.port = undefined;
