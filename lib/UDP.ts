@@ -16,6 +16,7 @@ export class UDP implements BetterPortI {
     connected: boolean = false;
     clients: { ip: string, port: number | undefined }[] = [];
     passThough: PassThrough;
+    currentRecPort: number | undefined;
     get isOpen(): boolean {
         return this.port != undefined && this.connected;
     }
@@ -31,7 +32,7 @@ export class UDP implements BetterPortI {
         return 0;
     }
     get recPort(): number {
-        return this.options.recPort || 0;
+        return this.currentRecPort || 0;
     }
     get sendPort(): number {
         return this.options.sendPort || 0;
@@ -64,11 +65,6 @@ export class UDP implements BetterPortI {
         if (!options.type) { options.type = "udp4" }
         this.passThough = new PassThrough();
         this.options = options;
-
-        //If there is no recPort randomly generate one
-        if (!this.options.recPort || this.options.recPort == 0) {
-            this.options.recPort = Math.floor(Math.random() * 9999) + 1000;
-        }
     }
 
     portExists(): Promise<boolean> {
@@ -117,6 +113,7 @@ export class UDP implements BetterPortI {
             //Bind to a port
             self.port.bind(self.options.recPort, self.options.bindAddress, () => {
                 self.connected = true;
+                self.currentRecPort = self.port?.address().port;
                 resolve();
             });
         });
@@ -133,6 +130,7 @@ export class UDP implements BetterPortI {
                 self.port?.removeAllListeners();
                 self.port?.unref();
                 self.port = undefined;
+                self.currentRecPort = undefined;
                 await new Promise((resolve) => { setTimeout(resolve, 1000); }); // Wait a second before resolving to make sure the port is actually closed
                 resolve();
             }
