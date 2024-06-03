@@ -32,6 +32,7 @@ export interface BetterPortOptions {
   keepOpen?: boolean; //Should we keep the port open
   closeOnNoData?: boolean; //Should we close the port if no data is received
   disconnectTimeoutMS?: number | undefined; //How long should we wait before disconnecting on no data
+  sendWhenOpened?: Buffer | undefined; //Data to send when the port opened
 }
 
 
@@ -69,6 +70,7 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
   disconnectTimeoutMS: number;
   disconnectedChecker: NodeJS.Timeout | undefined = undefined;
   pipes: { destination: NodeJS.WritableStream, options?: { end?: boolean; }, returnPipe: any }[] = [];
+  sendWhenOpened: Buffer | undefined;
 
   get path(): string | undefined {
     if (!this.port) { return undefined; }
@@ -85,6 +87,7 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
     this.keepOpen = options.keepOpen == undefined ? true : options.keepOpen;
     this.closeOnNoData = options.closeOnNoData == undefined ? true : options.closeOnNoData;
     this.disconnectTimeoutMS = options.disconnectTimeoutMS != undefined ? options.disconnectTimeoutMS : 5000;
+    this.sendWhenOpened = options.sendWhenOpened;
     this.port = port;
 
     //Auto open the port if set
@@ -137,6 +140,9 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
         var openCb = () => {
           self.emit(BetterPortEvent.open);
           self.updatePipes();
+          if (self.sendWhenOpened) {
+            self.write(self.sendWhenOpened);
+          }
         }
 
         var closeCb = async () => {
