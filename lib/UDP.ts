@@ -81,7 +81,11 @@ export class UDP implements BetterPortI {
         var self = this;
         return new Promise(async (resolve, reject) => {
             self.port = dgram.createSocket(self.options)
-            self.port.once("listening", async () => { await openCb(); });
+            self.port.once("listening", async () => {
+                self.connected = true;
+                self.currentRecPort = self.port?.address().port;
+                await openCb();
+            });
             self.port.once("connect", async () => { await openCb(); });
             self.port.on("error", async (err) => { await errorCb(err); });
             self.port.on("message", async (data: any, rinfo: dgram.RemoteInfo) => {
@@ -112,8 +116,6 @@ export class UDP implements BetterPortI {
 
             //Bind to a port
             self.port.bind(self.options.recPort, self.options.bindAddress, () => {
-                self.connected = true;
-                self.currentRecPort = self.port?.address().port;
                 resolve();
             });
         });
