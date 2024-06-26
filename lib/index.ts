@@ -104,11 +104,8 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
       }, 0);
     }
 
-    var exit = async () => {
-      await this.closePort();
-    }
-    process.on("exit", async function () { await exit() });
-    process.on("SIGINT", async function () { await exit(); });
+    process.once("exit", this.closePort);
+    process.once("SIGINT", this.closePort);
   }
 
   /**
@@ -210,6 +207,8 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
    */
   closePort(keepClosed: boolean = false, disconnectError?: Error): Promise<void> {
     if (keepClosed == true) { this.keepOpen = false; }
+    process.removeListener("exit", this.closePort);
+    process.removeListener("SIGINT", this.closePort);
     return this.port.closePort(disconnectError);
   }
 
