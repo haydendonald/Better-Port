@@ -1,8 +1,8 @@
 import { PassThrough } from 'stream';
-import { BetterPortOptions, BetterPortI, BetterPortType } from './index';
+import { BaseBetterPortOptions, BetterPortI, BetterPortType } from './index';
 import * as dgram from 'dgram';
 
-export type BetterUDPPortOptions = BetterPortOptions & dgram.SocketOptions & {
+export type BetterUDPPortOptions = BaseBetterPortOptions & dgram.SocketOptions & {
     ip?: string | string[] | undefined; //The IP address or addresses to send/listen to. If undefined will listen for clients to connect to us, then will also send to them
     bindAddress?: string | undefined; //The address to bind to if required
     recPort?: number; // The port to listen on
@@ -17,6 +17,7 @@ export class UDP implements BetterPortI {
     clients: { ip: string, port: number | undefined }[] = [];
     passThough: PassThrough;
     currentRecPort: number | undefined;
+    
     get isOpen(): boolean {
         return this.port != undefined && this.connected;
     }

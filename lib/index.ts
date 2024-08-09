@@ -27,7 +27,7 @@ export interface BetterPortI {
   pipe<T extends NodeJS.WritableStream>(destination: T, options?: { end?: boolean; }): T;
 }
 
-export interface BetterPortOptions {
+export interface BaseBetterPortOptions {
   autoOpen?: boolean; //Should the port be opened automatically on creation
   keepOpen?: boolean; //Should we keep the port open
   closeOnNoData?: boolean; //Should we close the port if no data is received
@@ -65,7 +65,7 @@ export class BetterPortEvent {
 }
 
 
-class BetterPort<T extends BetterPortI> extends internal.Writable {
+class BaseBetterPort<T extends BetterPortI> extends internal.Writable {
   port: T;
   keepOpen: boolean;
   closeOnNoData: boolean;
@@ -247,7 +247,7 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
 }
 
 export type BetterSerialPortOptions = Serial.BetterSerialPortOptions;
-export class BetterSerialPort extends BetterPort<Serial.Serial> {
+export class BetterSerialPort extends BaseBetterPort<Serial.Serial> {
   constructor(options: BetterSerialPortOptions, openCallback?: ErrorCallback) {
     super(options, new Serial.Serial(options), openCallback);
   }
@@ -255,7 +255,7 @@ export class BetterSerialPort extends BetterPort<Serial.Serial> {
 
 
 export type BetterUDPPortOptions = UDP.BetterUDPPortOptions;
-export class BetterUDPPort extends BetterPort<UDP.UDP> {
+export class BetterUDPPort extends BaseBetterPort<UDP.UDP> {
   constructor(options: BetterUDPPortOptions, openCallback?: any) {
     super(options, new UDP.UDP(options), openCallback);
   }
