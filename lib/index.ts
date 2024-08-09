@@ -7,10 +7,12 @@ import { ErrorCallback } from '@serialport/stream';
 import internal = require('stream');
 import * as Serial from './serial';
 import * as UDP from './UDP';
+import * as TCP from './TCP';
 
 export enum BetterPortType {
   Serial = "Serial",
-  UDP = "UDP"
+  UDP = "UDP",
+  TCP = "TCP"
 }
 
 export interface BetterPortI {
@@ -260,3 +262,13 @@ export class BetterUDPPort extends BaseBetterPort<UDP.UDP> {
     super(options, new UDP.UDP(options), openCallback);
   }
 }
+
+export type BetterTCPPortOptions = TCP.BetterTCPPortOptions;
+export class BetterTCPPort extends BaseBetterPort<TCP.TCP> {
+  constructor(options: BetterTCPPortOptions, openCallback?: any) {
+    super(options, new TCP.TCP(options), openCallback);
+  }
+}
+
+export type BetterPortOptions = BetterSerialPortOptions | BetterUDPPortOptions | BetterTCPPortOptions;
+export type BetterPort = BetterSerialPort | BetterUDPPort | BetterTCPPort;

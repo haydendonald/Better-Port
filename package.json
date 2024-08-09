@@ -36,7 +36,8 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "serialport": "12.0.0",
-    "dgram": "1.0.1"
+    "dgram": "1.0.1",
+    "net": "^1.0.2",
+    "serialport": "12.0.0"
   }
 }

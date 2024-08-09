@@ -51,12 +51,48 @@ port.openPort().then(() => {
 const BetterPort = require("./dist/index.js");
 const BetterPortEvent = BetterPort.BetterPortEvent;
 
-//Open a UDP server on port 7000
+//Open a UDP client on port 7000
 var port = new BetterPort.BetterUDPPort({
     recPort: 7000,
     keepOpen: true,
     autoOpen: true
     //Any extra open options for dram
+});
+
+//Setup our events
+port.on(BetterPortEvent.open, () => {
+    console.log("Port opened");
+});
+port.on(BetterPortEvent.close, () => {
+    console.log("Port closed");
+});
+port.on(BetterPortEvent.error, (err) => {
+    console.log("Port error: ", err);
+});
+port.on(BetterPortEvent.data, (data) => {
+    console.log("Port data: " + data.toString());
+});
+
+//Open the port
+port.openPort().then(() => {
+    console.log("Port created!");
+}).catch((err) => {
+    console.log("Port open error: ", err);
+});
+```
+
+## [TCP (net)](https://nodejs.org/api/net.html)
+```javascript
+const BetterPort = require("./dist/index.js");
+const BetterPortEvent = BetterPort.BetterPortEvent;
+
+//Open a TCP client on port 7000
+var port = new BetterPort.BetterTCPPort({
+    host: "192.168.0.1",
+    port: 5000,
+    keepOpen: true,
+    autoOpen: true
+    //Any extra open options for net
 });
 
 //Setup our events
