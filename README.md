@@ -98,6 +98,9 @@ portOpen(): boolean //If the port is currently open
   keepOpen?: boolean; //Should we keep the port open
   closeOnNoData?: boolean; //Should we close the port if no data is received
   disconnectTimeoutMS?: number | undefined; //How long should we wait before disconnecting on no data
+  sendWhenOpened?: Buffer | undefined; //Data to send when the port opened
+  reconnectTimeoutMS?: number | undefined; //How long should we wait before reconnecting. Default 1000md
+  connectionAttemptTimeoutMS?: number | undefined; //How long should we wait between failed connection attempts. Default 5000ms
 ```
 
 ## Overridden methods

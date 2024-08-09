@@ -33,6 +33,8 @@ export interface BetterPortOptions {
   closeOnNoData?: boolean; //Should we close the port if no data is received
   disconnectTimeoutMS?: number | undefined; //How long should we wait before disconnecting on no data
   sendWhenOpened?: Buffer | undefined; //Data to send when the port opened
+  reconnectTimeoutMS?: number | undefined; //How long should we wait before reconnecting. Default 1000md
+  connectionAttemptTimeoutMS?: number | undefined; //How long should we wait between failed connection attempts. Default 5000ms
 }
 
 
@@ -68,6 +70,8 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
   keepOpen: boolean;
   closeOnNoData: boolean;
   disconnectTimeoutMS: number;
+  reconnectTimeoutMS: number;
+  connectionAttemptTimeoutMS: number;
   disconnectedChecker: NodeJS.Timeout | undefined = undefined;
   pipes: { destination: NodeJS.WritableStream, options?: { end?: boolean; }, returnPipe: any }[] = [];
   sendWhenOpened: Buffer | undefined;
@@ -87,6 +91,8 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
     this.keepOpen = options.keepOpen == undefined ? true : options.keepOpen;
     this.closeOnNoData = options.closeOnNoData == undefined ? true : options.closeOnNoData;
     this.disconnectTimeoutMS = options.disconnectTimeoutMS != undefined ? options.disconnectTimeoutMS : 5000;
+    this.reconnectTimeoutMS = options.reconnectTimeoutMS != undefined ? options.reconnectTimeoutMS : 1000;
+    this.connectionAttemptTimeoutMS = options.connectionAttemptTimeoutMS != undefined ? options.connectionAttemptTimeoutMS : 5000;
     this.sendWhenOpened = options.sendWhenOpened;
     this.port = port;
 
@@ -132,69 +138,67 @@ class BetterPort<T extends BetterPortI> extends internal.Writable {
     var self = this;
     if (keepOpen != undefined) { this.keepOpen = keepOpen; }
     return new Promise(async (resolve, reject) => {
+      if (self.portOpen()) { resolve(); return; }
+      if (await self.portExists() == false) { reject("Port does not exist"); return; }
+
       //Check if the port actually exists first and try to open it
-      if (self.portOpen() == false && (await self.portExists()) == true) {
-        var openCb = () => {
-          self.emit(BetterPortEvent.open);
-          self.updatePipes();
-          if (self.sendWhenOpened) {
-            self.write(self.sendWhenOpened);
-          }
-        }
-
-        var closeCb = async () => {
-          self.emit(BetterPortEvent.close);
-          await self.closePort();
-
-          //Attempt to reopen the port if we are keeping it open
-          await new Promise((resolve) => { setTimeout(resolve, 1000); });
-          var tryIt = async () => {
-            if (self.keepOpen) {
-              try {
-                await self.openPort();
-              }
-              catch (e) {
-                await self.closePort();
-                await new Promise((resolve) => { setTimeout(resolve, 1000); });
-                await tryIt();
-              }
-            }
-          };
-          await tryIt();
-        }
-
-        var errorCb = async (err: any) => {
-          self.emit(BetterPortEvent.error, err);
-          if (self.port.isOpen) {
-            await self.closePort();
-          }
-          else {
-            await closeCb();
-          }
-        }
-
-        var dataCb = (data: any) => {
-          self.emit(BetterPortEvent.data, data);
-          if (self.closeOnNoData == true) {
-            clearTimeout(self.disconnectedChecker);
-            self.disconnectedChecker = setTimeout(async () => {
-              await self.closePort();
-            }, self.disconnectTimeoutMS);
-          }
-        }
-
-        //Ok close and open it again
-        try {
-          await self.closePort();
-          await self.port.openPort(openCb, closeCb, errorCb, dataCb);
-          resolve();
-        }
-        catch (e) {
-          reject(e);
+      var openCb = () => {
+        self.emit(BetterPortEvent.open);
+        self.updatePipes();
+        if (self.sendWhenOpened) {
+          self.write(self.sendWhenOpened);
         }
       }
-      else {
-        reject(self.port.isOpen ? "Port is already open" : `Port does not exist`);
+
+      var closeCb = async () => {
+        self.emit(BetterPortEvent.close);
+        await self.closePort();
+
+        //Attempt to reopen the port if we are keeping it open
+        await new Promise((resolve) => { setTimeout(resolve, this.reconnectTimeoutMS); });
+        var tryIt = async () => {
+          if (self.keepOpen) {
+            try {
+              await self.openPort();
+            }
+            catch (e) {
+              await self.closePort();
+              await new Promise((resolve) => { setTimeout(resolve, this.connectionAttemptTimeoutMS); });
+              await tryIt();
+            }
+          }
+        };
+        await tryIt();
+      }
+
+      var errorCb = async (err: any) => {
+        self.emit(BetterPortEvent.error, err);
+        if (self.port.isOpen) {
+          await self.closePort();
+        }
+        else {
+          await closeCb();
+        }
+      }
+
+      var dataCb = (data: any) => {
+        self.emit(BetterPortEvent.data, data);
+        if (self.closeOnNoData == true) {
+          clearTimeout(self.disconnectedChecker);
+          self.disconnectedChecker = setTimeout(async () => {
+            await self.closePort();
+          }, self.disconnectTimeoutMS);
+        }
+      }
+
+      //Ok close and open it again
+      try {
+        await self.closePort();
+        await self.port.openPort(openCb, closeCb, errorCb, dataCb);
+        resolve();
+      }
+      catch (e) {
+        reject(e);
       }
     });
   }
