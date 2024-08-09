@@ -45,7 +45,7 @@ export class BetterPortEvent {
   * Will emit an error if one occurs
   * @event
   */
-  static error = "error"
+  static error = "err"
 
   /** 
   * Will emit when the port closes
