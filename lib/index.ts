@@ -136,7 +136,7 @@ class BaseBetterPort<T extends BetterPortI> extends internal.Writable {
  * @param keepOpen Keep the port open after opening
  * @returns A promise
  */
-  openPort(keepOpen: boolean | undefined = undefined): Promise<void> {
+  openPort(keepOpen?: boolean): Promise<void> {
     var self = this;
     if (keepOpen != undefined) { this.keepOpen = keepOpen; }
     return new Promise(async (resolve, reject) => {
@@ -207,7 +207,7 @@ class BaseBetterPort<T extends BetterPortI> extends internal.Writable {
 
   /**
    * Close the port
-   * @param keepClosed Keep the port closed after closing
+   * @param keepClosed Keep the port closed after closing. Default is false
    * @param disconnectError The error to pass to the disconnect event
    * @returns A promise
    */

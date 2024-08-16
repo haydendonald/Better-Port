@@ -44,9 +44,10 @@ export class TCP implements BetterPortI {
                 self.port?.on("ready", () => {
                     clearTimeout(self.connectionTimeout);
                     openCb();
+                    resolve();
                 });
                 self.port?.on("close", () => { closeCb(); });
-                self.port?.on("error", (err) => { errorCb(err); });
+                self.port?.on("error", (err) => { errorCb(err); reject(err); });
                 self.port?.on("data", (data) => {
                     self.passThough.write(data);
                     dataCb(data);
@@ -56,11 +57,11 @@ export class TCP implements BetterPortI {
                 self.connectionTimeout = setTimeout(() => {
                     self.closePort();
                     errorCb("connection timeout");
+                    reject("connection timeout");
                 }, 5000);
                 self.port?.connect(self.options);
             }
             catch (e) { reject(e); return; }
-            resolve();
         });
     }
     closePort(): Promise<void> {
@@ -73,8 +74,10 @@ export class TCP implements BetterPortI {
 
             let destroy = () => {
                 self.port?.destroy();
-                self.port = undefined;
-                resolve();
+                self.port?.on("close", () => {
+                    self.port = undefined;
+                    resolve();
+                });
             }
 
             //Setup a timeout if end takes too long
