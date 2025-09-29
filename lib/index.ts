@@ -9,6 +9,9 @@ import * as Serial from './serial';
 import * as UDP from './UDP';
 import * as TCP from './TCP';
 
+//Re-export serial types for ease of use
+export { PortInfo } from '@serialport/bindings-cpp';
+
 export enum BetterPortType {
   Serial = "Serial",
   UDP = "UDP",
